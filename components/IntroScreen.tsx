@@ -1,4 +1,3 @@
-
 import React from 'react';
 
 interface IntroScreenProps {
@@ -18,7 +17,8 @@ const IntroScreen: React.FC<IntroScreenProps> = ({ onStart }) => {
             <ol className="text-left text-gray-300 space-y-3">
                 <li className="flex items-start"><span className="bg-indigo-500 text-white rounded-full w-6 h-6 text-sm font-bold flex items-center justify-center mr-3 flex-shrink-0">1</span> Start a live session and grant camera/microphone permissions.</li>
                 <li className="flex items-start"><span className="bg-indigo-500 text-white rounded-full w-6 h-6 text-sm font-bold flex items-center justify-center mr-3 flex-shrink-0">2</span> Walk around your space and describe it. Mention room names, dimensions, and the locations of doors and windows.</li>
-                <li className="flex items-start"><span className="bg-indigo-500 text-white rounded-full w-6 h-6 text-sm font-bold flex items-center justify-center mr-3 flex-shrink-0">3</span> When you're done, the AI will process your description and generate a floor plan.</li>
+                <li className="flex items-start"><span className="bg-indigo-500 text-white rounded-full w-6 h-6 text-sm font-bold flex items-center justify-center mr-3 flex-shrink-0">3</span> Describe any important paths, like "the emergency exit route starts here and goes to the main door."</li>
+                <li className="flex items-start"><span className="bg-indigo-500 text-white rounded-full w-6 h-6 text-sm font-bold flex items-center justify-center mr-3 flex-shrink-0">4</span> When you're done, the AI will process your description and generate a floor plan with your specified routes.</li>
             </ol>
         </div>
         <button

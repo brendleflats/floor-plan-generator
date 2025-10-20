@@ -1,4 +1,3 @@
-
 export interface Point {
   x: number;
   y: number;
@@ -24,12 +23,18 @@ export interface Window {
 export interface Room {
   name: string;
   polygon: Point[];
+  doors?: Door[];
+  windows?: Window[];
+}
+
+export interface Path {
+  name: string;
+  points: Point[];
+  color?: string;
 }
 
 export interface FloorPlan {
   units: 'feet' | 'meters';
   rooms: Room[];
-  // Optional detailed elements if the model provides them
-  doors?: Door[];
-  windows?: Window[];
+  paths?: Path[];
 }

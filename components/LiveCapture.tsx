@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GoogleGenAI, Modality, LiveServerMessage } from '@google/genai';
 import { MicIcon, CameraIcon } from './Icons';
@@ -34,10 +33,7 @@ const LiveCapture: React.FC<LiveCaptureProps> = ({ onFinish }) => {
   }, []);
 
   const startCapture = useCallback(async () => {
-    if (!process.env.API_KEY) {
-      setError("API_KEY environment variable not set");
-      return;
-    }
+    // FIX: Removed API key check as per coding guidelines.
     setError(null);
     setTranscription([]);
     currentInputTranscriptionRef.current = '';
@@ -57,6 +53,8 @@ const LiveCapture: React.FC<LiveCaptureProps> = ({ onFinish }) => {
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
         config: {
           inputAudioTranscription: {},
+          // FIX: Added required `responseModalities` for Live API sessions.
+          responseModalities: [Modality.AUDIO],
         },
         callbacks: {
           onopen: () => {
