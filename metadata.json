@@ -1,0 +1,8 @@
+{
+  "name": "AI Floor Plan Generator",
+  "description": "An AI-powered tool that helps you create floor plans by describing your space through a live audio and video session. The AI processes your input to generate a visual floor plan that you can export.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
