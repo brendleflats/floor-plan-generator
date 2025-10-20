@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import type { FloorPlan, Point, Path } from '../types';
-import { ExportIcon, RestartIcon, EditIcon, AddIcon, TrashIcon, SaveIcon, CancelIcon } from './Icons';
+import { ExportIcon, RestartIcon, EditIcon, AddIcon, TrashIcon, SaveIcon, CancelIcon, UndoIcon, RedoIcon } from './Icons';
 
 interface FloorPlanViewerProps {
   floorPlan: FloorPlan;
@@ -169,7 +169,6 @@ const FloorPlanViewer: React.FC<FloorPlanViewerProps> = ({
          const isSelected = isEditing && selectedPathIndex === pathIndex;
          const pathColor = path.color || '#dc2626'; // Default red
          
-         // Create a dynamic style for the marker to use the path's color
          const markerId = `arrowhead-${pathColor.replace('#', '')}`;
          const selectedMarkerId = `arrowhead-selected-${pathColor.replace('#', '')}`;
          
@@ -258,19 +257,34 @@ interface ResultScreenProps {
 
 const ResultScreen: React.FC<ResultScreenProps> = ({ floorPlan, onRestart }) => {
     const svgContainerRef = useRef<HTMLDivElement>(null);
-    const [editablePlan, setEditablePlan] = useState<FloorPlan>(JSON.parse(JSON.stringify(floorPlan)));
+    const [editablePlan, setEditablePlan] = useState<FloorPlan>(() => JSON.parse(JSON.stringify(floorPlan)));
     const [isEditing, setIsEditing] = useState(false);
     const [selectedPathIndex, setSelectedPathIndex] = useState<number | null>(null);
     const [isDrawing, setIsDrawing] = useState(false);
     const [newPathPoints, setNewPathPoints] = useState<Point[]>([]);
 
+    const [history, setHistory] = useState<FloorPlan[]>([JSON.parse(JSON.stringify(floorPlan))]);
+    const [historyIndex, setHistoryIndex] = useState(0);
+
+
     useEffect(() => {
-        setEditablePlan(JSON.parse(JSON.stringify(floorPlan)));
+        const initialPlan = JSON.parse(JSON.stringify(floorPlan));
+        setEditablePlan(initialPlan);
+        setHistory([initialPlan]);
+        setHistoryIndex(0);
         setIsEditing(false);
         setSelectedPathIndex(null);
         setIsDrawing(false);
         setNewPathPoints([]);
     }, [floorPlan]);
+
+    const updatePlanAndHistory = (newPlan: FloorPlan) => {
+        const newHistory = history.slice(0, historyIndex + 1);
+        newHistory.push(newPlan);
+        setHistory(newHistory);
+        setHistoryIndex(newHistory.length - 1);
+        setEditablePlan(newPlan);
+    };
 
     const handlePathSelect = (index: number) => {
         if(isDrawing) return;
@@ -278,13 +292,16 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ floorPlan, onRestart }) => 
     };
 
     const handlePointMove = (pathIndex: number, pointIndex: number, newPosition: Point) => {
-         setEditablePlan(prevPlan => {
-            const newPaths = [...(prevPlan.paths || [])];
-            const newPoints = [...newPaths[pathIndex].points];
-            newPoints[pointIndex] = newPosition;
-            newPaths[pathIndex] = { ...newPaths[pathIndex], points: newPoints };
-            return { ...prevPlan, paths: newPaths };
-        });
+        const newPlan = JSON.parse(JSON.stringify(editablePlan));
+        newPlan.paths[pathIndex].points[pointIndex] = newPosition;
+        // This is a high-frequency update, so we don't add to history here.
+        // History is updated on mouse up, which is handled implicitly by the next action.
+        setEditablePlan(newPlan); 
+    };
+    
+    // We'll add a function to commit the change after dragging.
+    const handlePointMoveEnd = () => {
+        updatePlanAndHistory(editablePlan);
     };
 
     const handlePointDelete = (pathIndex: number, pointIndex: number) => {
@@ -292,12 +309,9 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ floorPlan, onRestart }) => 
         if (!path) return;
 
         if (path.points.length > 2) {
-             setEditablePlan(prevPlan => {
-                const newPaths = [...(prevPlan.paths || [])];
-                const newPoints = newPaths[pathIndex].points.filter((_, idx) => idx !== pointIndex);
-                newPaths[pathIndex] = { ...newPaths[pathIndex], points: newPoints };
-                return { ...prevPlan, paths: newPaths };
-            });
+            const newPlan = JSON.parse(JSON.stringify(editablePlan));
+            newPlan.paths[pathIndex].points.splice(pointIndex, 1);
+            updatePlanAndHistory(newPlan);
         } else {
             handleDeletePath(pathIndex);
         }
@@ -324,19 +338,42 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ floorPlan, onRestart }) => 
                 points: newPathPoints,
                 color: '#3b82f6'
             };
-            setEditablePlan(prev => ({...prev, paths: [...(prev.paths || []), newPath]}));
+            const newPlan = { ...editablePlan, paths: [...(editablePlan.paths || []), newPath] };
+            updatePlanAndHistory(newPlan);
         }
         setIsDrawing(false);
         setNewPathPoints([]);
     };
 
     const handleDeletePath = (indexToDelete: number) => {
-        setEditablePlan(prev => ({...prev, paths: (prev.paths || []).filter((_, index) => index !== indexToDelete)}));
+        const newPlan = { ...editablePlan, paths: (editablePlan.paths || []).filter((_, index) => index !== indexToDelete) };
+        updatePlanAndHistory(newPlan);
         setSelectedPathIndex(null);
+    };
+    
+    const handleUndo = () => {
+        if (historyIndex > 0) {
+            const newIndex = historyIndex - 1;
+            setHistoryIndex(newIndex);
+            setEditablePlan(history[newIndex]);
+            setSelectedPathIndex(null);
+        }
+    };
+
+    const handleRedo = () => {
+        if (historyIndex < history.length - 1) {
+            const newIndex = historyIndex + 1;
+            setHistoryIndex(newIndex);
+            setEditablePlan(history[newIndex]);
+            setSelectedPathIndex(null);
+        }
     };
 
     const handleCancelEdit = () => {
-        setEditablePlan(JSON.parse(JSON.stringify(floorPlan)));
+        const originalPlan = JSON.parse(JSON.stringify(floorPlan));
+        setEditablePlan(originalPlan);
+        setHistory([originalPlan]);
+        setHistoryIndex(0);
         setIsEditing(false);
         setSelectedPathIndex(null);
         setIsDrawing(false);
@@ -348,26 +385,28 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ floorPlan, onRestart }) => 
         setSelectedPathIndex(null);
         setIsDrawing(false);
         setNewPathPoints([]);
+        setHistory([editablePlan]);
+        setHistoryIndex(0);
     };
+
+    const handlePathPropertyChange = () => {
+        updatePlanAndHistory(editablePlan);
+    }
 
     const handlePathNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (selectedPathIndex === null) return;
         const newName = e.target.value;
-        setEditablePlan(prevPlan => {
-            const newPaths = [...(prevPlan.paths || [])];
-            newPaths[selectedPathIndex] = { ...newPaths[selectedPathIndex], name: newName };
-            return { ...prevPlan, paths: newPaths };
-        });
+        const newPlan = JSON.parse(JSON.stringify(editablePlan));
+        newPlan.paths[selectedPathIndex].name = newName;
+        setEditablePlan(newPlan);
     };
 
     const handlePathColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (selectedPathIndex === null) return;
         const newColor = e.target.value;
-        setEditablePlan(prevPlan => {
-            const newPaths = [...(prevPlan.paths || [])];
-            newPaths[selectedPathIndex] = { ...newPaths[selectedPathIndex], color: newColor };
-            return { ...prevPlan, paths: newPaths };
-        });
+        const newPlan = JSON.parse(JSON.stringify(editablePlan));
+        newPlan.paths[selectedPathIndex].color = newColor;
+        setEditablePlan(newPlan);
     };
 
     const handleExportSVG = () => { /* ... (export logic unchanged) ... */ };
@@ -375,7 +414,11 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ floorPlan, onRestart }) => 
 
   return (
     <div className="flex flex-col h-full">
-      <div ref={svgContainerRef} className="flex-grow bg-gray-700 rounded-lg p-2 mb-4 border border-gray-600 shadow-inner">
+      <div 
+        ref={svgContainerRef} 
+        className="flex-grow bg-gray-700 rounded-lg p-2 mb-4 border border-gray-600 shadow-inner"
+        onMouseUp={isEditing ? handlePointMoveEnd : undefined}
+      >
         <FloorPlanViewer 
             floorPlan={editablePlan}
             isEditing={isEditing}
@@ -391,13 +434,23 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ floorPlan, onRestart }) => 
 
       {isEditing && (
         <div className="flex-shrink-0 flex items-center justify-center flex-wrap gap-x-4 gap-y-2 p-2 bg-gray-900/50 rounded-lg mb-4 border border-gray-700">
+            <div className="flex items-center gap-2">
+                 <button onClick={handleUndo} disabled={historyIndex === 0} className="flex items-center p-2 bg-gray-600 text-white font-semibold rounded-lg shadow-md hover:bg-gray-700 disabled:bg-gray-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                    <UndoIcon className="w-5 h-5"/>
+                </button>
+                 <button onClick={handleRedo} disabled={historyIndex >= history.length - 1} className="flex items-center p-2 bg-gray-600 text-white font-semibold rounded-lg shadow-md hover:bg-gray-700 disabled:bg-gray-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                    <RedoIcon className="w-5 h-5"/>
+                </button>
+            </div>
+            <div className="border-l border-gray-600 h-8 mx-2"></div>
+
             {isDrawing ? (
                  <button onClick={handleFinishDrawing} disabled={newPathPoints.length < 2} className="flex items-center px-4 py-2 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-green-700 disabled:bg-gray-500 transition-colors">
                     <SaveIcon className="w-5 h-5 mr-2"/> Finish Drawing
                 </button>
             ) : (
                 <button onClick={handleStartNewPath} className="flex items-center px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 transition-colors">
-                    <AddIcon className="w-5 h-5 mr-2"/> Add New Path
+                    <AddIcon className="w-5 h-5 mr-2"/> Add Path
                 </button>
             )}
             <button onClick={() => selectedPathIndex !== null && handleDeletePath(selectedPathIndex)} disabled={selectedPathIndex === null} className="flex items-center px-4 py-2 bg-red-600 text-white font-semibold rounded-lg shadow-md hover:bg-red-700 disabled:bg-gray-500 disabled:cursor-not-allowed transition-colors">
@@ -413,6 +466,7 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ floorPlan, onRestart }) => 
                             type="text"
                             value={editablePlan.paths?.[selectedPathIndex]?.name || ''}
                             onChange={handlePathNameChange}
+                            onBlur={handlePathPropertyChange}
                             onClick={(e) => e.stopPropagation()}
                             className="bg-gray-700 border border-gray-600 rounded-md px-2 py-1 text-white text-sm w-40 focus:ring-indigo-500 focus:border-indigo-500"
                         />
@@ -424,6 +478,7 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ floorPlan, onRestart }) => 
                             type="color"
                             value={editablePlan.paths?.[selectedPathIndex]?.color || '#dc2626'}
                             onChange={handlePathColorChange}
+                            onBlur={handlePathPropertyChange}
                             onClick={(e) => e.stopPropagation()}
                             className="w-8 h-8 p-0 border-none rounded-md bg-transparent cursor-pointer"
                         />
