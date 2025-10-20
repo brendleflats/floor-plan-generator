@@ -167,16 +167,30 @@ const FloorPlanViewer: React.FC<FloorPlanViewerProps> = ({
          if (path.points.length < 2) return null;
          const pointsString = path.points.map(p => `${p.x},${p.y}`).join(' ');
          const isSelected = isEditing && selectedPathIndex === pathIndex;
+         const pathColor = path.color || '#dc2626'; // Default red
+         
+         // Create a dynamic style for the marker to use the path's color
+         const markerId = `arrowhead-${pathColor.replace('#', '')}`;
+         const selectedMarkerId = `arrowhead-selected-${pathColor.replace('#', '')}`;
+         
          return (
             <g key={`path-group-${pathIndex}`} onClick={(e) => { e.stopPropagation(); if(isEditing) onPathSelect(pathIndex); }}>
+              <defs>
+                <marker id={markerId} markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill={pathColor} />
+                </marker>
+                 <marker id={selectedMarkerId} markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#0ea5e9" />
+                </marker>
+              </defs>
               <polyline points={pointsString} stroke="transparent" strokeWidth={planDiagonal * 0.02} fill="none" className={isEditing ? 'cursor-pointer' : ''} />
               <polyline
                   points={pointsString}
-                  stroke={isSelected ? '#0ea5e9' : (path.color || '#dc2626')}
+                  stroke={isSelected ? '#0ea5e9' : pathColor}
                   strokeWidth={isSelected ? planDiagonal * 0.007 : planDiagonal * 0.003}
                   fill="none"
                   strokeDasharray={`${planDiagonal * 0.01}, ${planDiagonal * 0.01}`}
-                  markerEnd={isSelected ? "url(#arrowhead-selected)" : "url(#arrowhead)"}
+                  markerEnd={isSelected ? `url(#${selectedMarkerId})` : `url(#${markerId})`}
                   className={`${isEditing ? 'cursor-pointer' : ''} transition-all duration-150 ease-in-out`}
               />
             </g>
@@ -251,7 +265,6 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ floorPlan, onRestart }) => 
     const [newPathPoints, setNewPathPoints] = useState<Point[]>([]);
 
     useEffect(() => {
-        // Reset local state if the initial floor plan prop changes (e.g., on restart)
         setEditablePlan(JSON.parse(JSON.stringify(floorPlan)));
         setIsEditing(false);
         setSelectedPathIndex(null);
@@ -265,23 +278,27 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ floorPlan, onRestart }) => 
     };
 
     const handlePointMove = (pathIndex: number, pointIndex: number, newPosition: Point) => {
-        const newPlan = { ...editablePlan };
-        if (newPlan.paths) {
-          const newPoints = [...newPlan.paths[pathIndex].points];
-          newPoints[pointIndex] = newPosition;
-          newPlan.paths[pathIndex] = { ...newPlan.paths[pathIndex], points: newPoints };
-          setEditablePlan(newPlan);
-        }
+         setEditablePlan(prevPlan => {
+            const newPaths = [...(prevPlan.paths || [])];
+            const newPoints = [...newPaths[pathIndex].points];
+            newPoints[pointIndex] = newPosition;
+            newPaths[pathIndex] = { ...newPaths[pathIndex], points: newPoints };
+            return { ...prevPlan, paths: newPaths };
+        });
     };
 
     const handlePointDelete = (pathIndex: number, pointIndex: number) => {
-        const newPlan = { ...editablePlan };
-        if (newPlan.paths && newPlan.paths[pathIndex].points.length > 2) {
-            const newPoints = newPlan.paths[pathIndex].points.filter((_, idx) => idx !== pointIndex);
-            newPlan.paths[pathIndex] = { ...newPlan.paths[pathIndex], points: newPoints };
-            setEditablePlan(newPlan);
+        const path = editablePlan.paths?.[pathIndex];
+        if (!path) return;
+
+        if (path.points.length > 2) {
+             setEditablePlan(prevPlan => {
+                const newPaths = [...(prevPlan.paths || [])];
+                const newPoints = newPaths[pathIndex].points.filter((_, idx) => idx !== pointIndex);
+                newPaths[pathIndex] = { ...newPaths[pathIndex], points: newPoints };
+                return { ...prevPlan, paths: newPaths };
+            });
         } else {
-            // If deleting a point makes the path invalid (less than 2 points), delete the path.
             handleDeletePath(pathIndex);
         }
     };
@@ -290,7 +307,7 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ floorPlan, onRestart }) => 
         if(isDrawing) {
             setNewPathPoints(prev => [...prev, point]);
         } else {
-            setSelectedPathIndex(null); // Deselect path
+            setSelectedPathIndex(null);
         }
     };
     
@@ -305,25 +322,21 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ floorPlan, onRestart }) => 
             const newPath: Path = {
                 name: `Custom Path ${((editablePlan.paths?.length) || 0) + 1}`,
                 points: newPathPoints,
-                color: '#3b82f6' // blue
+                color: '#3b82f6'
             };
-            const newPlan = { ...editablePlan };
-            newPlan.paths = [...(newPlan.paths || []), newPath];
-            setEditablePlan(newPlan);
+            setEditablePlan(prev => ({...prev, paths: [...(prev.paths || []), newPath]}));
         }
         setIsDrawing(false);
         setNewPathPoints([]);
     };
 
     const handleDeletePath = (indexToDelete: number) => {
-        const newPlan = { ...editablePlan };
-        newPlan.paths = (newPlan.paths || []).filter((_, index) => index !== indexToDelete);
-        setEditablePlan(newPlan);
+        setEditablePlan(prev => ({...prev, paths: (prev.paths || []).filter((_, index) => index !== indexToDelete)}));
         setSelectedPathIndex(null);
     };
 
     const handleCancelEdit = () => {
-        setEditablePlan(JSON.parse(JSON.stringify(floorPlan))); // Revert changes
+        setEditablePlan(JSON.parse(JSON.stringify(floorPlan)));
         setIsEditing(false);
         setSelectedPathIndex(null);
         setIsDrawing(false);
@@ -331,12 +344,30 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ floorPlan, onRestart }) => 
     };
     
     const handleSaveChanges = () => {
-        // In a real app, you might pass this up to a parent state handler.
-        // For now, we just exit edit mode, keeping the local state.
         setIsEditing(false);
         setSelectedPathIndex(null);
         setIsDrawing(false);
         setNewPathPoints([]);
+    };
+
+    const handlePathNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (selectedPathIndex === null) return;
+        const newName = e.target.value;
+        setEditablePlan(prevPlan => {
+            const newPaths = [...(prevPlan.paths || [])];
+            newPaths[selectedPathIndex] = { ...newPaths[selectedPathIndex], name: newName };
+            return { ...prevPlan, paths: newPaths };
+        });
+    };
+
+    const handlePathColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (selectedPathIndex === null) return;
+        const newColor = e.target.value;
+        setEditablePlan(prevPlan => {
+            const newPaths = [...(prevPlan.paths || [])];
+            newPaths[selectedPathIndex] = { ...newPaths[selectedPathIndex], color: newColor };
+            return { ...prevPlan, paths: newPaths };
+        });
     };
 
     const handleExportSVG = () => { /* ... (export logic unchanged) ... */ };
@@ -359,7 +390,7 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ floorPlan, onRestart }) => 
       </div>
 
       {isEditing && (
-        <div className="flex-shrink-0 flex items-center justify-center space-x-2 p-2 bg-gray-900/50 rounded-lg mb-4 border border-gray-700">
+        <div className="flex-shrink-0 flex items-center justify-center flex-wrap gap-x-4 gap-y-2 p-2 bg-gray-900/50 rounded-lg mb-4 border border-gray-700">
             {isDrawing ? (
                  <button onClick={handleFinishDrawing} disabled={newPathPoints.length < 2} className="flex items-center px-4 py-2 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-green-700 disabled:bg-gray-500 transition-colors">
                     <SaveIcon className="w-5 h-5 mr-2"/> Finish Drawing
@@ -372,8 +403,37 @@ const ResultScreen: React.FC<ResultScreenProps> = ({ floorPlan, onRestart }) => 
             <button onClick={() => selectedPathIndex !== null && handleDeletePath(selectedPathIndex)} disabled={selectedPathIndex === null} className="flex items-center px-4 py-2 bg-red-600 text-white font-semibold rounded-lg shadow-md hover:bg-red-700 disabled:bg-gray-500 disabled:cursor-not-allowed transition-colors">
                 <TrashIcon className="w-5 h-5 mr-2"/> Delete Selected
             </button>
-            <div className="border-l border-gray-600 h-8 mx-2"></div>
-            <button onClick={handleSaveChanges} className="flex items-center px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 transition-colors">
+
+            {selectedPathIndex !== null && (
+                <div className="flex items-center justify-center flex-wrap gap-x-4 gap-y-2 border-l border-gray-600 pl-4 ml-2">
+                    <div className="flex items-center gap-2">
+                        <label htmlFor="pathName" className="font-semibold text-sm text-gray-300 whitespace-nowrap">Path Name:</label>
+                        <input
+                            id="pathName"
+                            type="text"
+                            value={editablePlan.paths?.[selectedPathIndex]?.name || ''}
+                            onChange={handlePathNameChange}
+                            onClick={(e) => e.stopPropagation()}
+                            className="bg-gray-700 border border-gray-600 rounded-md px-2 py-1 text-white text-sm w-40 focus:ring-indigo-500 focus:border-indigo-500"
+                        />
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <label htmlFor="pathColor" className="font-semibold text-sm text-gray-300">Color:</label>
+                        <input
+                            id="pathColor"
+                            type="color"
+                            value={editablePlan.paths?.[selectedPathIndex]?.color || '#dc2626'}
+                            onChange={handlePathColorChange}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-8 h-8 p-0 border-none rounded-md bg-transparent cursor-pointer"
+                        />
+                    </div>
+                </div>
+            )}
+            
+            <div className="flex-grow"></div> 
+
+            <button onClick={handleSaveChanges} className="flex items-center px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 transition-colors ml-auto">
                 <SaveIcon className="w-5 h-5 mr-2"/> Save Changes
             </button>
              <button onClick={handleCancelEdit} className="flex items-center px-4 py-2 bg-gray-600 text-white font-semibold rounded-lg shadow-md hover:bg-gray-700 transition-colors">
