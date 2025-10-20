@@ -34,7 +34,15 @@ const FloorPlanViewer: React.FC<FloorPlanViewerProps> = ({
     return <p className="text-center text-gray-400">No rooms to display.</p>;
   }
 
-  const allPoints = floorPlan.rooms.flatMap(room => room.polygon);
+  const allPoints = [
+    ...floorPlan.rooms.flatMap(room => room.polygon),
+    ...(floorPlan.structures?.flatMap(s => s.polygon) || [])
+  ];
+
+  if (allPoints.length === 0) {
+     return <p className="text-center text-gray-400">No points to display.</p>;
+  }
+
   const minX = Math.min(...allPoints.map(p => p.x));
   const maxX = Math.max(...allPoints.map(p => p.x));
   const minY = Math.min(...allPoints.map(p => p.y));
@@ -142,7 +150,10 @@ const FloorPlanViewer: React.FC<FloorPlanViewerProps> = ({
                 const dir = { x: wallDx / Math.sqrt(wallDx**2 + wallDy**2), y: wallDy / Math.sqrt(wallDx**2 + wallDy**2) };
                 const start = { x: center.x - dir.x * door.width / 2, y: center.y - dir.y * door.width / 2 };
                 const end = { x: center.x + dir.x * door.width / 2, y: center.y + dir.y * door.width / 2 };
-                return <line key={`d-${roomIndex}-${doorIndex}`} x1={start.x} y1={start.y} x2={end.x} y2={end.y} className="stroke-amber-700" strokeWidth={planDiagonal * 0.006} strokeLinecap="round" />;
+                const isBayDoor = door.type === 'bay';
+                const doorStrokeWidth = planDiagonal * (isBayDoor ? 0.01 : 0.006);
+                const doorColorClass = isBayDoor ? 'stroke-orange-500' : 'stroke-amber-700';
+                return <line key={`d-${roomIndex}-${doorIndex}`} x1={start.x} y1={start.y} x2={end.x} y2={end.y} className={doorColorClass} strokeWidth={doorStrokeWidth} strokeLinecap="round" />;
             })}
             {room.windows?.map((window, windowIndex) => {
                 const p1 = room.polygon[window.wallIndex];
@@ -157,6 +168,60 @@ const FloorPlanViewer: React.FC<FloorPlanViewerProps> = ({
             })}
             <text x={center.x} y={center.y} fontSize={fontSize} className="font-sans font-semibold" textAnchor="middle" alignmentBaseline="middle" fill="#1e3a8a">
               {room.name}
+            </text>
+          </g>
+        );
+      })}
+
+      {/* Structures */}
+      {floorPlan.structures?.map((structure, structIndex) => {
+        const pointsString = structure.polygon.map(p => `${p.x},${p.y}`).join(' ');
+        const center = getRoomCenter(structure.polygon);
+        
+        let fillClass = 'fill-gray-400';
+        let strokeClass = 'stroke-gray-600';
+        let content: React.ReactNode = null;
+
+        switch (structure.type) {
+            case 'skylight':
+                fillClass = 'fill-cyan-300/50';
+                strokeClass = 'stroke-cyan-500';
+                break;
+            case 'stairs':
+                fillClass = 'fill-gray-300';
+                strokeClass = 'stroke-gray-500';
+                if (structure.polygon.length >= 4) {
+                    const p1 = structure.polygon[0], p2 = structure.polygon[1], p3 = structure.polygon[2], p4 = structure.polygon[3];
+                    const numSteps = 10;
+                    content = Array.from({length: numSteps - 1}).map((_, i) => {
+                        const ratio = (i + 1) / numSteps;
+                        const startX = p1.x + (p4.x - p1.x) * ratio;
+                        const startY = p1.y + (p4.y - p1.y) * ratio;
+                        const endX = p2.x + (p3.x - p2.x) * ratio;
+                        const endY = p2.y + (p3.y - p2.y) * ratio;
+                        return <line key={`stair-${structIndex}-${i}`} x1={startX} y1={startY} x2={endX} y2={endY} className={strokeClass} strokeWidth={planDiagonal * 0.001} />
+                    });
+                }
+                break;
+            case 'large_equipment':
+                fillClass = 'fill-slate-500';
+                strokeClass = 'stroke-slate-700';
+                break;
+            case 'hoist':
+            case 'lift':
+                fillClass = 'fill-amber-300/70';
+                strokeClass = 'stroke-amber-500';
+                break;
+            default:
+                break;
+        }
+
+        return (
+          <g key={`structure-${structIndex}`}>
+            <polygon points={pointsString} className={`${fillClass} ${strokeClass}`} strokeWidth={planDiagonal * 0.0015} />
+            {content}
+            <text x={center.x} y={center.y} fontSize={planDiagonal * 0.01} className="font-sans font-medium" textAnchor="middle" alignmentBaseline="middle" fill="#111827">
+              {structure.name}
             </text>
           </g>
         );

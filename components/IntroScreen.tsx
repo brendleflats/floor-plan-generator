@@ -52,8 +52,9 @@ const IntroScreen: React.FC<IntroScreenProps> = ({ onStart }) => {
             <ol className="text-left text-gray-300 space-y-3 text-sm md:text-base flex-grow">
                 <li className="flex items-start"><span className="bg-indigo-500 text-white rounded-full w-6 h-6 text-sm font-bold flex items-center justify-center mr-3 flex-shrink-0">1</span> Start a live session and grant camera/microphone permissions.</li>
                 <li className="flex items-start"><span className="bg-indigo-500 text-white rounded-full w-6 h-6 text-sm font-bold flex items-center justify-center mr-3 flex-shrink-0">2</span> Walk around and describe your space, dimensions, doors, and windows.</li>
-                <li className="flex items-start"><span className="bg-indigo-500 text-white rounded-full w-6 h-6 text-sm font-bold flex items-center justify-center mr-3 flex-shrink-0">3</span> Describe important paths, like an emergency exit route.</li>
-                <li className="flex items-start"><span className="bg-indigo-500 text-white rounded-full w-6 h-6 text-sm font-bold flex items-center justify-center mr-3 flex-shrink-0">4</span> When done, the AI will generate your floor plan to view and edit.</li>
+                <li className="flex items-start"><span className="bg-indigo-500 text-white rounded-full w-6 h-6 text-sm font-bold flex items-center justify-center mr-3 flex-shrink-0">3</span> Point out industrial features like bay doors, stairs, and large equipment.</li>
+                <li className="flex items-start"><span className="bg-indigo-500 text-white rounded-full w-6 h-6 text-sm font-bold flex items-center justify-center mr-3 flex-shrink-0">4</span> Describe important paths, like an emergency exit route.</li>
+                <li className="flex items-start"><span className="bg-indigo-500 text-white rounded-full w-6 h-6 text-sm font-bold flex items-center justify-center mr-3 flex-shrink-0">5</span> When done, the AI will generate your floor plan to view and edit.</li>
             </ol>
           </div>
         </div>
